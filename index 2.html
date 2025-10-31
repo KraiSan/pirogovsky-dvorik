@@ -1,0 +1,458 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Пироговский дворик</title>
+  <!-- TailwindCSS via CDN for rapid prototyping -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    :root {
+      --bg: #f0fdf4; /* green-50 */
+      --text: #065f46; /* emerald-800/900 blend */
+      --muted: #047857; /* emerald-700 */
+      --border: #a7f3d0; /* emerald-200 */
+    }
+    html, body { height: 100%; }
+    body { background: var(--bg); color: var(--text); }
+    .btn { display: inline-flex; align-items: center; justify-content: center; border-radius: 0.75rem; padding: 0.5rem 0.75rem; font-size: 0.875rem; font-weight: 500; transition: .2s; outline: none; }
+    .btn:focus { box-shadow: 0 0 0 2px rgba(16,185,129,.35); }
+    .btn-primary { background: rgb(16 185 129); color: #fff; }
+    .btn-primary:hover { background: rgb(5 150 105); }
+    .btn-ghost { background: transparent; }
+    .btn-ghost:hover { background: rgba(16,185,129,.08); }
+    .btn-outline { border: 1px solid var(--border); }
+    .btn-outline:hover { background: rgba(16,185,129,.08); }
+
+    /* slide-in cart */
+    .sheet { position: fixed; top: 0; right: 0; width: 100%; max-width: 420px; height: 100%; background: white; box-shadow: -2px 0 24px rgba(0,0,0,.12); transform: translateX(100%); transition: transform .35s cubic-bezier(.22,1,.36,1); z-index: 60; }
+    .sheet.open { transform: translateX(0); }
+    .sheet-mask { position: fixed; inset: 0; background: rgba(0,0,0,.18); opacity: 0; pointer-events: none; transition: opacity .25s ease; z-index: 50; }
+    .sheet-mask.open { opacity: 1; pointer-events: auto; }
+
+    /* modal */
+    .modal { position: fixed; inset: 0; display: grid; place-items: center; background: rgba(0,0,0,.18); opacity: 0; pointer-events: none; transition: opacity .25s ease; z-index: 70; }
+    .modal.open { opacity: 1; pointer-events: auto; }
+
+    .card { background: rgba(255,255,255,.8); border: 1px solid var(--border); border-radius: 1rem; }
+    .badge { display: inline-flex; align-items: center; border-radius: 999px; border: 1px solid #34d399; color: #064e3b; padding: 2px 8px; font-size: 12px; line-height: 1; }
+
+    /* prevent sort button width jump */
+    .no-ls { letter-spacing: 0; }
+
+    /* simple fade-in */
+    .fade-in { animation: fade .35s ease both; }
+    @keyframes fade { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
+
+    /* mobile tweaks */
+    @media (max-width: 640px) {
+      .nav-grid { gap: .25rem; }
+    }
+  </style>
+</head>
+<body class="min-h-screen flex flex-col">
+  <!-- Header -->
+  <header class="sticky top-0 z-30 bg-[rgba(240,253,244,0.9)] backdrop-blur border-b border-emerald-100 shadow-sm">
+    <div class="max-w-6xl mx-auto px-4 py-3 flex items-center justify-between">
+      <button id="btnHome" class="flex items-center gap-3">
+        <div class="w-10 h-10 rounded-2xl bg-emerald-200 grid place-items-center shadow">
+          <!-- simple icon -->
+          <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16" />
+          </svg>
+        </div>
+        <div class="text-left">
+          <h1 class="text-2xl font-bold">Пироговский дворик</h1>
+          <p class="text-sm text-emerald-700/80">быстро, качественно, экологично</p>
+        </div>
+      </button>
+      <nav class="nav-grid flex gap-1 sm:gap-2 text-emerald-800 font-medium">
+        <button class="btn btn-ghost" data-nav="home">Главная</button>
+        <button class="btn btn-ghost" data-nav="menu">Меню</button>
+        <button class="btn btn-ghost" data-nav="feedback">Обратная связь</button>
+        <button class="btn btn-ghost" data-nav="contact">Контакты</button>
+      </nav>
+    </div>
+  </header>
+
+  <!-- Success banner (home only) -->
+  <div id="orderBanner" class="max-w-4xl w-full mx-auto mt-4 px-4 hidden">
+    <div class="rounded-xl border border-emerald-300 bg-emerald-100 text-emerald-900 px-4 py-2 text-sm">
+      Спасибо за заказ! Мы уже начали готовить 😊
+    </div>
+  </div>
+
+  <!-- Main -->
+  <main class="flex-1">
+    <!-- Home -->
+    <section id="page-home" class="max-w-4xl mx-auto text-center py-16 px-4">
+      <h2 class="text-4xl font-bold mb-4 text-emerald-800">Добро пожаловать в Пироговский дворик</h2>
+      <p class="text-lg text-emerald-700 mb-8">Домашняя еда, приготовленная с любовью. Найдите свои любимые блюда и закажите их заранее.</p>
+      <button class="btn btn-primary px-6 py-3 text-lg" data-nav="menu">Перейти к меню</button>
+    </section>
+
+    <!-- Menu -->
+    <section id="page-menu" class="max-w-6xl mx-auto px-4 py-8 hidden">
+      <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-6">
+        <h2 class="text-2xl font-semibold">Меню</h2>
+        <div class="flex flex-col sm:flex-row gap-2 sm:items-center">
+          <input id="search" type="search" placeholder="Поиск блюда…" class="w-full sm:w-64 bg-white/80 border border-emerald-200 rounded-xl px-3 py-2 outline-none focus:ring-2 focus:ring-emerald-300" />
+          <select id="sortBy" class="w-full sm:w-40 bg-white/80 border border-emerald-200 rounded-xl px-3 py-2">
+            <option value="price">Цена</option>
+            <option value="calories">Калории</option>
+          </select>
+          <button id="sortDir" class="btn btn-outline no-ls min-w-[160px]">по возрастанию</button>
+        </div>
+      </div>
+      <div id="dishGrid" class="grid sm:grid-cols-2 lg:grid-cols-3 gap-4"></div>
+    </section>
+
+    <!-- Feedback -->
+    <section id="page-feedback" class="max-w-4xl mx-auto px-4 py-10 hidden">
+      <div class="flex items-center gap-2 mb-4">
+        <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 10h8M8 14h5M21 12c0 4.418-4.03 8-9 8a9.86 9.86 0 01-4-.8L3 20l.8-4A8.96 8.96 0 013 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"/>
+        </svg>
+        <h2 class="text-2xl font-semibold">Обратная связь</h2>
+      </div>
+      <div id="fbBanner" class="hidden rounded-xl border border-emerald-300 bg-emerald-50 text-emerald-900 p-3 mb-4">Спасибо за отзыв! Он уже отображается ниже.</div>
+      <div class="grid md:grid-cols-2 gap-6">
+        <!-- Form -->
+        <div class="card p-4">
+          <h3 class="text-lg font-semibold mb-3">Оставьте отзыв</h3>
+          <div class="grid gap-3">
+            <div>
+              <label class="block text-sm mb-1">Имя (необязательно)</label>
+              <input id="fbName" class="w-full bg-white/80 border border-emerald-200 rounded-xl px-3 py-2" placeholder="Ваше имя" />
+            </div>
+            <div>
+              <label class="block text-sm mb-1">Автомат</label>
+              <select id="fbMachine" class="w-full bg-white/80 border border-emerald-200 rounded-xl px-3 py-2"></select>
+            </div>
+            <div>
+              <label class="block text-sm mb-1">Блюдо (необязательно)</label>
+              <select id="fbDish" class="w-full bg-white/80 border border-emerald-200 rounded-xl px-3 py-2"></select>
+            </div>
+            <div>
+              <label class="block text-sm mb-1">Оценка</label>
+              <select id="fbRating" class="w-full bg-white/80 border border-emerald-200 rounded-xl px-3 py-2">
+                <option value="5">5 из 5</option>
+                <option value="4">4 из 5</option>
+                <option value="3">3 из 5</option>
+                <option value="2">2 из 5</option>
+                <option value="1">1 из 5</option>
+              </select>
+            </div>
+            <div>
+              <label class="block text-sm mb-1">Отзыв <span class="text-xs text-emerald-700/70">(до 300 символов)</span></label>
+              <textarea id="fbComment" rows="5" maxlength="300" class="w-full bg-white/80 border border-emerald-200 rounded-xl px-3 py-2" placeholder="Что понравилось? Что улучшить в еде или автомате?"></textarea>
+              <div class="flex items-center justify-between text-xs mt-1">
+                <div id="fbError" class="text-red-600"></div>
+                <div><span id="fbCount">0</span>/300</div>
+              </div>
+            </div>
+            <div>
+              <button id="fbSend" class="btn btn-primary">Отправить отзыв</button>
+            </div>
+          </div>
+        </div>
+        <!-- Reviews -->
+        <div class="card p-4">
+          <h3 class="text-lg font-semibold mb-3">Последние отзывы</h3>
+          <div id="reviewsEmpty" class="text-sm text-emerald-800/80">Пока нет отзывов. Будьте первыми!</div>
+          <div id="reviews" class="space-y-3 mt-3"></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Contacts -->
+    <section id="page-contact" class="max-w-4xl mx-auto text-center py-16 px-4 hidden">
+      <h2 class="text-3xl font-bold mb-4 text-emerald-800">Свяжитесь с нами</h2>
+      <p class="text-lg text-emerald-700 mb-2">Телефон: +7 (000) 000-00-00</p>
+      <p class="text-lg text-emerald-700 mb-6">Email: hello@pirogovskiy.example</p>
+      <button class="btn btn-primary" data-nav="home">На главную</button>
+    </section>
+  </main>
+
+  <!-- Cart Sheet -->
+  <div id="sheetMask" class="sheet-mask"></div>
+  <aside id="cartSheet" class="sheet">
+    <div class="h-full flex flex-col">
+      <div class="px-5 py-4 border-b border-emerald-200 flex items-center justify-between">
+        <h3 class="text-lg font-semibold">Корзина заказа</h3>
+        <button id="closeSheet" class="btn btn-ghost">Закрыть</button>
+      </div>
+      <div id="cartList" class="p-5 space-y-3 overflow-auto grow"></div>
+      <div class="p-5 border-t border-emerald-100">
+        <div class="flex items-center justify-between font-semibold mb-3">
+          <span>Итого:</span>
+          <span id="cartTotal">0 ₽</span>
+        </div>
+        <div class="flex gap-2">
+          <button id="btnClear" class="btn btn-outline w-1/2">Очистить</button>
+          <button id="btnCheckout" class="btn btn-primary w-1/2" disabled>Оформить заказ</button>
+        </div>
+      </div>
+    </div>
+  </aside>
+
+  <!-- Checkout Modal -->
+  <div id="modal" class="modal">
+    <div class="w-[92%] max-w-md card p-5 bg-white">
+      <h3 class="text-lg font-semibold mb-3">Куда привезти заказ завтра</h3>
+      <label class="text-sm mb-1 block">Выберите автомат</label>
+      <select id="machine" class="w-full bg-white/90 border border-emerald-200 rounded-xl px-3 py-2 mb-3"></select>
+      <p class="text-xs text-emerald-700/80 mb-4">Мы привезём выбранные позиции в указанный автомат на следующий день.</p>
+      <div class="flex gap-2 justify-end">
+        <button id="cancelCheckout" class="btn btn-outline">Отмена</button>
+        <button id="confirmCheckout" class="btn btn-primary">Подтвердить</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Footer -->
+  <footer class="border-t border-emerald-100 bg-[rgba(240,253,244,0.7)] text-center py-6 text-sm text-emerald-700">
+    © 2025 Пироговский дворик — быстро, качественно, экологично
+  </footer>
+
+  <script>
+    // ========== Data ==========
+    const MACHINES = [
+      { id: 'm1', label: 'Островитянова 1с6 (3 этаж)' },
+      { id: 'm2', label: 'Островитянова 1с7 (2 этаж)' },
+      { id: 'm3', label: 'Островитянова 1с8 (-2 этаж)' },
+    ];
+    const DISHES = [
+      { id: 'cz', name: 'Цезарь', price: 290, calories: 350 },
+      { id: 'cb', name: 'Карбонара', price: 320, calories: 520 },
+      { id: 'bln', name: 'Блинчики', price: 180, calories: 300 },
+      { id: 'blm', name: 'Блинчики с мясом', price: 210, calories: 370 },
+      { id: 'srn', name: 'Сырники', price: 230, calories: 410 },
+      { id: 'vngr', name: 'Винегрет', price: 170, calories: 180 },
+      { id: 'plv', name: 'Плов с курицей', price: 310, calories: 560 },
+      { id: 'ckb', name: 'Куриные котлеты с булгуром', price: 340, calories: 520 },
+      { id: 'sob', name: 'Лапша гречневая с цукини и ореховым соусом', price: 300, calories: 440 },
+      { id: 'vit', name: 'Салат витаминный', price: 190, calories: 160 },
+      { id: 'bol', name: 'Паста болоньезе', price: 330, calories: 580 },
+      { id: 'mil', name: 'Каша пшенная с тыквой', price: 200, calories: 260 },
+      { id: 'wok', name: 'Вок с курицей', price: 310, calories: 520 },
+      { id: 'bit', name: 'Биточки из курицы с капустой', price: 290, calories: 430 },
+      { id: 'buck', name: 'Гречка с тефтелями в томатном соусе', price: 280, calories: 500 },
+      { id: 'brg', name: 'Бургер с говядиной (сниженная калорийность)', price: 350, calories: 470 },
+      { id: 'cal', name: 'Ролл Калифорния', price: 360, calories: 430 },
+      { id: 'phl', name: 'Ролл Филадельфия', price: 380, calories: 490 },
+      { id: 'eel', name: 'Ролл с угрём', price: 420, calories: 520 },
+      { id: 'chs', name: 'Куриный суп с лапшой', price: 210, calories: 150 },
+      { id: 'brs', name: 'Борщ', price: 220, calories: 190 },
+    ];
+
+    // ========== State ==========
+    const state = {
+      page: 'home',
+      query: '',
+      sortBy: 'price', // 'price' | 'calories'
+      sortDir: 'asc',  // 'asc' | 'desc'
+      cart: [],        // [{id,name,price,qty}]
+      reviews: [],     // [{...}]
+      orderSuccess: false,
+    };
+
+    // ========== Helpers ==========
+    const fmt = (n) => new Intl.NumberFormat('ru-RU').format(n) + ' ₽';
+    const qs = (sel) => document.querySelector(sel);
+    const ce = (tag, cls) => { const el = document.createElement(tag); if (cls) el.className = cls; return el; };
+
+    function sortDishes(list, by, dir) {
+      return [...list].sort((a,b) => {
+        const av = by === 'price' ? a.price : a.calories;
+        const bv = by === 'price' ? b.price : b.calories;
+        return dir === 'asc' ? av - bv : bv - av;
+      });
+    }
+
+    // ========== Navigation ==========
+    function showPage(p) {
+      state.page = p;
+      ['home','menu','feedback','contact'].forEach(id => {
+        qs('#page-' + id).classList.toggle('hidden', id !== p);
+      });
+      if (p === 'home') {
+        const banner = qs('#orderBanner');
+        banner.classList.toggle('hidden', !state.orderSuccess);
+        if (state.orderSuccess) {
+          setTimeout(() => { state.orderSuccess = false; banner.classList.add('hidden'); }, 4000);
+        }
+      }
+      if (p === 'menu') renderMenu();
+    }
+
+    // ========== Menu ==========
+    function renderMenu() {
+      const grid = qs('#dishGrid');
+      grid.innerHTML = '';
+      const q = state.query.trim().toLowerCase();
+      const base = q ? DISHES.filter(d => d.name.toLowerCase().includes(q)) : DISHES;
+      const list = sortDishes(base, state.sortBy, state.sortDir);
+      list.forEach(dish => {
+        const card = ce('div', 'card p-4 hover:shadow transition-shadow fade-in');
+        const head = ce('div', 'flex items-center justify-between mb-2');
+        const name = ce('div', 'text-lg font-semibold'); name.textContent = dish.name; head.appendChild(name);
+        const price = ce('div', 'text-emerald-700 font-semibold'); price.textContent = fmt(dish.price); head.appendChild(price);
+        const kcal = ce('div', 'text-sm text-emerald-800');
+        kcal.textContent = dish.calories + ' ккал' + (dish.id === 'brg' ? ' (сниженная калорийность)' : '');
+        const row = ce('div', 'mt-2 flex items-center gap-2');
+        const badge = ce('span', 'badge'); badge.textContent = 'В наличии';
+        const btn = ce('button', 'btn btn-primary ml-auto'); btn.textContent = 'Заказать';
+        btn.addEventListener('click', () => addToCart(dish));
+        card.appendChild(head); card.appendChild(kcal); row.appendChild(badge); row.appendChild(btn); card.appendChild(row);
+        grid.appendChild(card);
+      });
+    }
+
+    // ========== Cart ==========
+    const sheet = qs('#cartSheet');
+    const sheetMask = qs('#sheetMask');
+    function openSheet() { sheet.classList.add('open'); sheetMask.classList.add('open'); }
+    function closeSheet() { sheet.classList.remove('open'); sheetMask.classList.remove('open'); }
+
+    function addToCart(d) {
+      const idx = state.cart.findIndex(i => i.id === d.id);
+      if (idx >= 0) state.cart[idx].qty += 1; else state.cart.push({ id: d.id, name: d.name, price: d.price, qty: 1 });
+      renderCart(); openSheet();
+    }
+    function inc(id) { const it = state.cart.find(i => i.id === id); if (it) { it.qty += 1; renderCart(); } }
+    function dec(id) { const it = state.cart.find(i => i.id === id); if (it) { it.qty = Math.max(1, it.qty - 1); renderCart(); } }
+    function removeItem(id) { state.cart = state.cart.filter(i => i.id !== id); renderCart(); }
+    function clearCart() { state.cart = []; renderCart(); }
+
+    function renderCart() {
+      const list = qs('#cartList'); list.innerHTML = '';
+      const total = state.cart.reduce((s,i) => s + i.price * i.qty, 0);
+      qs('#cartTotal').textContent = fmt(total);
+      qs('#btnCheckout').disabled = state.cart.length === 0;
+      if (state.cart.length === 0) {
+        const empty = ce('div', 'text-sm text-emerald-800/80'); empty.textContent = 'Корзина пуста. Добавьте блюдо из меню.'; list.appendChild(empty); return;
+      }
+      state.cart.forEach(item => {
+        const row = ce('div', 'rounded-xl border border-emerald-200 p-3 bg-emerald-50/40');
+        const wrap = ce('div', 'flex items-center justify-between');
+        const left = ce('div');
+        const nm = ce('div', 'font-medium'); nm.textContent = item.name; left.appendChild(nm);
+        const pr = ce('div', 'text-sm text-emerald-700'); pr.textContent = fmt(item.price) + ' × ' + item.qty; left.appendChild(pr);
+        const right = ce('div', 'flex items-center gap-2');
+        const bDec = ce('button', 'btn btn-outline'); bDec.textContent = '-'; bDec.addEventListener('click', () => dec(item.id));
+        const bInc = ce('button', 'btn btn-outline'); bInc.textContent = '+'; bInc.addEventListener('click', () => inc(item.id));
+        const bRem = ce('button', 'btn btn-ghost'); bRem.textContent = 'Убрать'; bRem.addEventListener('click', () => removeItem(item.id));
+        right.append(bDec,bInc,bRem);
+        wrap.append(left,right); row.appendChild(wrap); list.appendChild(row);
+      });
+    }
+
+    // ========== Checkout ==========
+    function fillMachines(select) {
+      select.innerHTML = '';
+      MACHINES.forEach(m => { const opt = ce('option'); opt.value = m.id; opt.textContent = m.label; select.appendChild(opt); });
+    }
+
+    function confirmOrder() {
+      closeModal(); closeSheet(); clearCart();
+      state.orderSuccess = true; showPage('home');
+    }
+
+    // ========== Feedback ==========
+    function fillFeedbackSelects() {
+      const fbMachine = qs('#fbMachine');
+      const fbDish = qs('#fbDish');
+      fbMachine.innerHTML = ''; MACHINES.forEach(m => { const o = ce('option'); o.value = m.id; o.textContent = m.label; fbMachine.appendChild(o); });
+      fbDish.innerHTML = ''; const none = ce('option'); none.value = 'none'; none.textContent = '— не выбрано —'; fbDish.appendChild(none);
+      DISHES.forEach(d => { const o = ce('option'); o.value = d.id; o.textContent = d.name; fbDish.appendChild(o); });
+    }
+
+    function submitFeedback() {
+      const name = qs('#fbName').value.trim() || 'Аноним';
+      const machineId = qs('#fbMachine').value;
+      const dishVal = qs('#fbDish').value;
+      const dishId = dishVal !== 'none' ? dishVal : undefined;
+      const rating = Number(qs('#fbRating').value);
+      const commentEl = qs('#fbComment');
+      const errorEl = qs('#fbError');
+      const comment = commentEl.value.trim();
+      if (!comment) { errorEl.textContent = 'Пожалуйста, напишите пару слов в отзыве.'; return; }
+      if (comment.length > 300) { errorEl.textContent = 'Максимум 300 символов.'; return; }
+      errorEl.textContent = '';
+      const review = { id: Math.random().toString(36).slice(2), name, machineId, rating, comment, dishId, createdAt: new Date().toISOString() };
+      state.reviews = [review, ...state.reviews];
+      // reset
+      qs('#fbName').value = ''; qs('#fbComment').value = ''; qs('#fbCount').textContent = '0';
+      qs('#fbDish').value = 'none'; qs('#fbRating').value = '5'; qs('#fbMachine').value = 'm1';
+      qs('#fbBanner').classList.remove('hidden');
+      renderReviews();
+    }
+
+    function renderReviews() {
+      const list = qs('#reviews'); const empty = qs('#reviewsEmpty');
+      list.innerHTML = '';
+      empty.classList.toggle('hidden', state.reviews.length > 0);
+      state.reviews.forEach(r => {
+        const it = ce('div', 'rounded-xl border border-emerald-200 p-3 bg-emerald-50/40');
+        const top = ce('div', 'flex items-center justify-between');
+        const nm = ce('div', 'font-medium'); nm.textContent = r.name; const dt = ce('div', 'text-xs text-emerald-700/80'); dt.textContent = new Date(r.createdAt).toLocaleString('ru-RU');
+        top.append(nm, dt);
+        const stars = ce('div', 'text-sm text-emerald-800/90 mt-1'); stars.textContent = 'Оценка: ' + '★'.repeat(r.rating) + '☆'.repeat(5-r.rating);
+        const mach = ce('div', 'text-sm text-emerald-800/90'); mach.textContent = 'Автомат: ' + (MACHINES.find(m => m.id === r.machineId)?.label || '');
+        it.append(top, stars, mach);
+        if (r.dishId) { const d = DISHES.find(d => d.id === r.dishId)?.name; const dn = ce('div', 'text-sm text-emerald-800/90'); dn.textContent = 'Блюдо: ' + (d || ''); it.appendChild(dn); }
+        const cm = ce('div', 'mt-2 text-emerald-900'); cm.textContent = r.comment; it.appendChild(cm);
+        list.appendChild(it);
+      });
+    }
+
+    // ========== Modal ==========
+    const modal = qs('#modal');
+    function openModal() { modal.classList.add('open'); }
+    function closeModal() { modal.classList.remove('open'); }
+
+    // ========== Events ==========
+    // nav
+    document.querySelectorAll('[data-nav]').forEach(btn => btn.addEventListener('click', (e) => showPage(e.currentTarget.getAttribute('data-nav'))));
+    qs('#btnHome').addEventListener('click', () => showPage('home'));
+    // search/sort
+    qs('#search').addEventListener('input', (e) => { state.query = e.target.value; renderMenu(); });
+    qs('#sortBy').addEventListener('change', (e) => { state.sortBy = e.target.value; renderMenu(); });
+    qs('#sortDir').addEventListener('click', () => {
+      state.sortDir = state.sortDir === 'asc' ? 'desc' : 'asc';
+      qs('#sortDir').textContent = state.sortDir === 'asc' ? 'по возрастанию' : 'по убыванию';
+      // fixed width ensured via min-w to prevent jumping
+      renderMenu();
+    });
+
+    // cart sheet
+    qs('#closeSheet').addEventListener('click', closeSheet);
+    sheetMask.addEventListener('click', closeSheet);
+    qs('#btnClear').addEventListener('click', clearCart);
+    qs('#btnCheckout').addEventListener('click', () => { fillMachines(qs('#machine')); openModal(); });
+
+    // modal
+    qs('#cancelCheckout').addEventListener('click', closeModal);
+    qs('#confirmCheckout').addEventListener('click', () => { closeModal(); closeSheet(); clearCart(); state.orderSuccess = true; showPage('home'); });
+
+    // feedback
+    qs('#fbComment').addEventListener('input', (e) => { const v = e.target.value; if (v.length > 300) e.target.value = v.slice(0,300); qs('#fbCount').textContent = e.target.value.length; qs('#fbError').textContent = ''; });
+    qs('#fbSend').addEventListener('click', submitFeedback);
+
+    // ========== Init ==========
+    function init() {
+      showPage('home');
+      renderMenu();
+      fillMachines(qs('#machine'));
+      fillFeedbackSelects();
+      // basic runtime tests
+      const noneOptionExists = !!document.querySelector('#fbDish option[value="none"]');
+      console.assert(noneOptionExists, 'TEST: fbDish must include sentinel "none"');
+      const asc = sortDishes(DISHES, 'price', 'asc'); console.assert(asc[0].price <= asc[asc.length-1].price, 'TEST: price asc ordering');
+      const desc = sortDishes(DISHES, 'calories', 'desc'); console.assert(desc[0].calories >= desc[desc.length-1].calories, 'TEST: calories desc ordering');
+    }
+    init();
+  </script>
+</body>
+</html>
