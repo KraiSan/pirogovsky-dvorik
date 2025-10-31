@@ -1,0 +1,280 @@
+<!doctype html>
+<html lang="ru">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Пироговский дворик</title>
+    <meta name="description" content="Быстро, качественно, экологично. Пироговский дворик — домашние блюда в автоматах на Островитянова." />
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <style>
+      html, body { height: 100%; }
+      body { background: linear-gradient(to bottom, #f0fdf4, #f7fee7); }
+    </style>
+  </head>
+  <body class="min-h-screen text-green-950">
+    <div id="root"></div>
+
+    <script type="text/babel" data-presets="env,react">
+      const { useMemo, useState } = React;
+
+      const MACHINES = [
+        { id: "ost-1s6", name: "Островитянова 1с6 (3 этаж)" },
+        { id: "ost-1s7", name: "Островитянова 1с7 (2 этаж)" },
+        { id: "ost-1s8", name: "Островитянова 1с8 (-2 этаж)" },
+      ];
+
+      const DISHES_BASE = [
+        { name: "Цезарь", price: 320, kcal: 380 },
+        { name: "Карбонара", price: 360, kcal: 620 },
+        { name: "Блинчики", price: 180, kcal: 290 },
+        { name: "Блинчики с мясом", price: 220, kcal: 360 },
+        { name: "Сырники", price: 240, kcal: 410 },
+        { name: "Винегрет", price: 170, kcal: 210 },
+        { name: "Плов с курицей", price: 340, kcal: 560 },
+        { name: "Куриные котлеты с булгуром", price: 350, kcal: 520 },
+        { name: "Лапша гречневая с цукини и ореховым соусом", price: 330, kcal: 480 },
+        { name: "Салат витаминный", price: 190, kcal: 170 },
+        { name: "Паста болоньезе", price: 360, kcal: 640 },
+        { name: "Каша пшенная с тыквой", price: 210, kcal: 300 },
+        { name: "Вок с курицей", price: 340, kcal: 550 },
+        { name: "Биточки из курицы с капустой", price: 320, kcal: 460 },
+        { name: "Гречка с тефтелями в томатном соусе", price: 330, kcal: 530 },
+        { name: "Бургер с говядиной (сниженная калорийность)", price: 390, kcal: 480 },
+        { name: "Борщ", price: 220, kcal: 180 },
+        { name: "Ролл Калифорния", price: 380, kcal: 420 },
+        { name: "Ролл Филадельфия", price: 420, kcal: 480 },
+        { name: "Ролл с угрем", price: 430, kcal: 500 },
+        { name: "Куриный суп с лапшой", price: 240, kcal: 220 },
+      ];
+
+      const DISHES = DISHES_BASE.map((d, i) => ({
+        id: `dish-${i + 1}`,
+        ...d,
+        stock: {
+          "ost-1s6": Math.random() > 0.35 ? Math.floor(Math.random() * 6) : 0,
+          "ost-1s7": Math.random() > 0.35 ? Math.floor(Math.random() * 6) : 0,
+          "ost-1s8": Math.random() > 0.35 ? Math.floor(Math.random() * 6) : 0,
+        },
+      }));
+
+      function formatRub(n) {
+        return new Intl.NumberFormat("ru-RU", { style: "currency", currency: "RUB", maximumFractionDigits: 0 }).format(n);
+      }
+
+      function nextDayLocalISO() {
+        const now = new Date();
+        const next = new Date(now);
+        next.setDate(now.getDate() + 1);
+        next.setHours(9, 0, 0, 0);
+        return next.toISOString();
+      }
+
+      function App() {
+        const [query, setQuery] = useState("");
+        const [sortBy, setSortBy] = useState("price");
+        const [sortDir, setSortDir] = useState("asc");
+        const [onlyInStock, setOnlyInStock] = useState(false);
+        const [machineFilter, setMachineFilter] = useState(new Set(MACHINES.map(m => m.id)));
+        const [orderOpen, setOrderOpen] = useState(false);
+        const [basket, setBasket] = useState({});
+        const [confirm, setConfirm] = useState(null);
+
+        const filtered = useMemo(() => {
+          const machines = Array.from(machineFilter);
+          let list = DISHES.filter(d => {
+            const matches = d.name.toLowerCase().includes(query.toLowerCase());
+            const stockSum = machines.reduce((acc, id) => acc + (d.stock[id] || 0), 0);
+            const okStock = !onlyInStock || stockSum > 0;
+            return matches && okStock;
+          });
+          list.sort((a, b) => {
+            const key = sortBy === "price" ? "price" : "kcal";
+            const dir = sortDir === "asc" ? 1 : -1;
+            return (a[key] - b[key]) * dir;
+          });
+          return list;
+        }, [query, sortBy, sortDir, onlyInStock, machineFilter]);
+
+        const basketTotal = useMemo(() => {
+          return Object.entries(basket).reduce((sum, [dishId, item]) => {
+            const dish = DISHES.find(d => d.id === dishId);
+            return sum + (dish ? dish.price * item.qty : 0);
+          }, 0);
+        }, [basket]);
+
+        const nextDayIso = React.useMemo(nextDayLocalISO, []);
+        const nextDayFmt = React.useMemo(() => new Date(nextDayIso).toLocaleString("ru-RU", { dateStyle: "long", timeStyle: "short" }), [nextDayIso]);
+
+        function toggleMachine(id) {
+          setMachineFilter(prev => {
+            const c = new Set(prev);
+            if (c.has(id)) c.delete(id); else c.add(id);
+            return c;
+          });
+        }
+
+        function addToBasket(dishId, toMachineId) {
+          setBasket(prev => {
+            const curr = prev[dishId] || { qty: 0, toMachineId };
+            return { ...prev, [dishId]: { qty: curr.qty + 1, toMachineId } };
+          });
+          setOrderOpen(true);
+        }
+
+        function decFromBasket(dishId) {
+          setBasket(prev => {
+            const curr = prev[dishId];
+            if (!curr) return prev;
+            const q = curr.qty - 1;
+            const copy = { ...prev };
+            if (q <= 0) delete copy[dishId]; else copy[dishId] = { ...curr, qty: q };
+            return copy;
+          });
+        }
+
+        function changeBasketMachine(dishId, machineId) {
+          setBasket(prev => ({ ...prev, [dishId]: { ...(prev[dishId] || { qty: 1 }), toMachineId: machineId } }));
+        }
+
+        function submitOrder() {
+          const payload = Object.entries(basket).map(([dishId, item]) => ({
+            dish: DISHES.find(d => d.id === dishId)?.name,
+            qty: item.qty,
+            toMachine: MACHINES.find(m => m.id === item.toMachineId)?.name,
+          }));
+          setConfirm({ items: payload, total: basketTotal, eta: nextDayFmt });
+          setBasket({});
+          setOrderOpen(false);
+        }
+
+        return (
+          <div className="min-h-screen">
+            <header className="sticky top-0 z-30 backdrop-blur bg-white/70 border-b border-lime-200/60">
+              <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-2xl bg-lime-200 flex items-center justify-center shadow">
+                    <span className="text-lg">🍃</span>
+                  </div>
+                  <div>
+                    <h1 className="text-2xl font-bold tracking-tight">Пироговский дворик</h1>
+                    <p className="text-sm text-green-700">быстро, качественно, экологично</p>
+                  </div>
+                </div>
+                <div className="hidden md:flex items-center gap-4 text-sm">
+                  <div className="flex items-center gap-2 text-green-700">📍 Островитянова 1с6 · 1с7 · 1с8</div>
+                  <button onClick={() => setOrderOpen(true)} className="px-4 py-2 rounded-2xl shadow bg-lime-300 hover:bg-lime-400 transition">
+                    🧺 Заказ на завтра
+                  </button>
+                </div>
+              </div>
+            </header>
+
+            <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+              <div className="grid md:grid-cols-4 gap-4 items-end bg-white/70 rounded-2xl p-4 shadow-sm border border-lime-200">
+                <div className="md:col-span-2">
+                  <label htmlFor="search" className="text-green-800 text-sm">Поиск блюда</label>
+                  <input id="search" placeholder="например, борщ" value={query} onChange={(e) => setQuery(e.target.value)} className="mt-1 w-full bg-white/80 rounded-xl border border-lime-200 px-3 py-2"/>
+                </div>
+                <div>
+                  <label className="text-green-800 text-sm">Сортировка</label>
+                  <div className="flex gap-2 mt-1">
+                    <select value={sortBy} onChange={(e) => setSortBy(e.target.value)} className="rounded-xl bg-white/80 border border-lime-200 px-3 py-2 w-full">
+                      <option value="price">По цене</option>
+                      <option value="kcal">По калориям</option>
+                    </select>
+                    <select value={sortDir} onChange={(e) => setSortDir(e.target.value)} className="rounded-xl bg-white/80 border border-lime-200 px-3 py-2 w-full">
+                      <option value="asc">Возр.</option>
+                      <option value="desc">Убыв.</option>
+                    </select>
+                  </div>
+                </div>
+                <div className="flex items-center gap-3 p-3 rounded-xl bg-white/80 border border-lime-200">
+                  <span>🔎</span>
+                  <label htmlFor="instock" className="text-green-800">Только в наличии</label>
+                  <input id="instock" type="checkbox" checked={onlyInStock} onChange={(e) => setOnlyInStock(e.target.checked)} />
+                </div>
+                <div className="md:col-span-4">
+                  <label className="text-green-800 text-sm">Автоматы</label>
+                  <div className="flex flex-wrap gap-2 mt-2">
+                    {MACHINES.map(m => (
+                      <button
+                        key={m.id}
+                        onClick={() => toggleMachine(m.id)}
+                        className={`px-3 py-1 rounded-full border transition shadow-sm ${machineFilter.has(m.id) ? 'bg-lime-200 border-lime-300' : 'bg-white border-lime-200 text-green-700'}`}
+                      >
+                        {m.name}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            </section>
+
+            <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pb-12">
+              <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-5">
+                {filtered.map((d) => (
+                  <div key={d.id} className="rounded-2xl border border-lime-200 bg-white/80 shadow-sm hover:shadow-md transition">
+                    <div className="p-5">
+                      <div className="flex items-start justify-between gap-3">
+                        <h3 className="text-lg font-semibold text-green-950 leading-tight">{d.name}</h3>
+                        <span className="inline-flex items-center px-2.5 py-1 rounded-xl bg-lime-100 text-green-900 text-sm font-medium">{formatRub(d.price)}</span>
+                      </div>
+                      <p className="text-sm text-green-700 mt-1">{d.kcal} ккал</p>
+                      <div className="my-3 h-px bg-lime-200" />
+                      <div className="space-y-2">
+                        {MACHINES.map(m => {
+                          const count = d.stock[m.id] || 0;
+                          const available = count > 0;
+                          const inFilter = machineFilter.has(m.id);
+                          return (
+                            <div key={m.id} className={`flex items-center justify-between text-sm ${inFilter ? '' : 'opacity-50'}`}>
+                              <div className="flex items-center gap-2">
+                                <span className={`inline-flex items-center justify-center w-5 h-5 rounded-full ${available ? 'bg-lime-300' : 'bg-lime-100'}`}>{available ? '✔' : 'i'}</span>
+                                <span>{m.name}</span>
+                              </div>
+                              <div className="flex items-center gap-2">
+                                <span className="text-green-800">{available ? `${count} шт.` : 'нет'}</span>
+                                <button
+                                  disabled={!inFilter}
+                                  className="px-3 py-1 rounded-xl border border-lime-200 bg-white hover:bg-lime-50 disabled:opacity-50"
+                                  onClick={() => addToBasket(d.id, m.id)}
+                                >
+                                  Заказ
+                                </button>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </main>
+
+            <footer className="bg-white/70 border-t border-lime-200 py-8">
+              <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+                <h4 className="text-lg font-semibold text-green-950 mb-3">Адреса автоматов</h4>
+                <div className="grid md:grid-cols-3 gap-4 text-green-900">
+                  {MACHINES.map(m => (
+                    <div key={m.id} className="rounded-2xl bg-lime-100 p-4 border border-lime-200 shadow-sm">
+                      <div className="flex items-center gap-2">📍<span>{m.name}</span></div>
+                      <p className="text-sm text-green-800 mt-2">Работаем ежедневно. Заказ привозим на следующий день к 09:00.</p>
+                    </div>
+                  ))}
+                </div>
+                <p className="text-xs text-green-700 mt-6">© {new Date().getFullYear()} «Пироговский дворик». Домашний стиль, пастельные зелёно‑салатовые тона.</p>
+              </div>
+            </footer>
+          </div>
+        );
+      }
+
+      const root = ReactDOM.createRoot(document.getElementById("root"));
+      root.render(<App />);
+    </script>
+  </body>
+</html>
